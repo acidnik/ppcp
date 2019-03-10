@@ -1,0 +1,11 @@
+[package]
+name = "qop"
+version = "0.1.0"
+authors = ["Nikita Bilous <nikita@bilous.me>"]
+
+[dependencies]
+clap = "*"
+failure = "*"
+walkdir = "*"
+indicatif = "*"
+pathdiff = "*"
