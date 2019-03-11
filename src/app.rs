@@ -8,9 +8,7 @@ use indicatif::*;
 use std::sync::*;
 use std::ops::{Deref, DerefMut};
 
-
-mod op;
-use self::op::*;
+use copy::*;
 
 pub type Result<T> = std::result::Result<T, Error>;
 
@@ -173,8 +171,8 @@ impl App {
         self.pb_curr.set_draw_delta(0);
         self.pb_curr.set_position(stats.current_done as u64);
         // TODO show only measures of last N reads?
-        let speed = stats.current_done * 1_000_000_000 / Instant::now().duration_since(stats.current_start).as_nanos() as usize;
-        self.pb_curr.set_message(&format!("{}/s", HumanBytes(speed as u64)));
+        let curr_duration = Instant::now().duration_since(stats.current_start);
+        self.pb_curr.set_message(&format!("{}/s", self.fmt_speed(stats.current_done, &curr_duration)));
 
         if stats.files_total.changed() {
             self.pb_files.set_length(*stats.files_total as u64);
@@ -199,7 +197,7 @@ impl App {
             // fs walker sends files to operation
             let (src_tx, src_rx) = channel();
 
-            let operation = op::OperationCopy::new(&matches, user_rx, worker_tx, src_rx)?;
+            let operation = OperationCopy::new(&matches, user_rx, worker_tx, src_rx)?;
             
             let search_path = operation.search_path();
             assert!(!search_path.is_empty());
@@ -234,14 +232,30 @@ impl App {
             self.pb_name.finish();
             let ela = Instant::now().duration_since(start);
             let _locked = self.pb_done.lock().unwrap();
-            println!("copied {} files ({}) in {} {}/s", *stats.files_total, self.fmt_size(*stats.bytes_total), HumanDuration(ela),
-                     self.fmt_size(*stats.bytes_total * 1_000_000_000 / ela.as_nanos() as usize));
+            println!("copied {} files ({}) in {} {}/s", *stats.files_total, HumanBytes(*stats.bytes_total as u64), HumanDuration(ela),
+                     self.fmt_speed(*stats.bytes_total, &ela));
         }
         Ok(())
     }
 
-    fn fmt_size(&self, x: usize) -> String {
-        format!("{}", HumanBytes(x as u64))
+    fn fmt_speed(&self, x: usize, ela: &Duration) -> String {
+        let speed = if *ela > Duration::from_secs(1) {
+            x / ela.as_secs() as usize
+        }
+        else if *ela > Duration::from_micros(1) && x < std::usize::MAX/1000 {
+            x * 1000 / ela.as_micros() as usize
+        }
+        else if *ela > Duration::from_millis(1) && x < std::usize::MAX/1_000_000 {
+            x * 1_000_000 / ela.as_millis() as usize
+        }
+        else if *ela > Duration::from_nanos(1) && x < std::usize::MAX/1_000_000_000 {
+            x * 1_000_000_000 / ela.as_millis() as usize
+        }
+        else {
+            // what the hell are you?
+            0
+        };
+        format!("{}", HumanBytes(speed as u64))
     }
 
 }

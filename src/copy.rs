@@ -210,7 +210,7 @@ impl CopyWorker {
                 let dest_dir = dest_file.parent().unwrap().to_owned();
                 if ! mkdird.contains(&dest_dir) {
                     // TODO : this will make dir foo/bar/baz and then foo/bar again
-                    fs::create_dir_all(&dest_dir)?;
+                    fs::create_dir_all(&dest_dir).unwrap();
                     mkdird.insert(dest_dir.clone());
                 }
                 // println!("{:?} -> {:?} | r = {:?}", p, dest_file, r);
@@ -219,7 +219,7 @@ impl CopyWorker {
                 // let mut fw = BufWriter::new(File::create(&dest_file).unwrap());
                 let mut fr = File::open(&p).unwrap();
                 let mut fw = BufWriter::new(File::create(&dest_file).unwrap());
-                let mut buf = vec![0; 1_000_000];
+                let mut buf = vec![0; 10_000_000];
                 let mut s = 0;
                 loop {
                     match fr.read(&mut buf) {
@@ -238,7 +238,6 @@ impl CopyWorker {
                     }
                 }
             }
-            drop(tx);
         });
         CopyWorker {}
     }

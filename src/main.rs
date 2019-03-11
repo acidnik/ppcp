@@ -13,6 +13,7 @@ use clap::{Arg, App, SubCommand};
 use std::error;
 
 mod app;
+mod copy;
 
 use std::sync::mpsc::channel;
 use std::time::Duration;
