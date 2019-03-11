@@ -1,5 +1,5 @@
 use failure::Error;
-use clap::{Arg, SubCommand, ArgMatches};
+use clap::ArgMatches;
 use std::thread;
 use std::path::PathBuf;
 use std::sync::mpsc::*;
@@ -48,7 +48,6 @@ impl<T: PartialEq> DerefMut for TrackChange<T> {
     }
 }
 
-// #[derive(Default, Clone)]
 pub struct OperationStats {
     files_done: usize,
     bytes_done: usize,
@@ -110,7 +109,7 @@ impl SourceWalker {
 }
 
 impl App {
-    pub fn new(matches: &ArgMatches) -> Self {
+    pub fn new() -> Self {
         let pb_name = ProgressBar::with_draw_target(10, ProgressDrawTarget::stdout_nohz());
         pb_name.set_style(ProgressStyle::default_spinner()
             .template("{spinner} {wide_msg} \u{00A0}")
@@ -150,9 +149,9 @@ impl App {
         }
     }
 
-    fn error_ask(&self, err: String) -> OperationControl {
-        OperationControl::Skip // TODO
-    }
+    // fn error_ask(&self, err: String) -> OperationControl {
+    //     OperationControl::Skip // TODO
+    // }
 
     fn update_progress(&mut self, stats: &mut OperationStats) {
         // return;
@@ -186,55 +185,50 @@ impl App {
     }
 
     pub fn run(&mut self, matches: &ArgMatches) -> Result<()> {
-        // let mut ui = cursive::Cursive::ncurses();
-        // ui.set_fps(16);
-        // let sender = ui.cb_sink().clone();
-        if let Some(matches) = matches.subcommand_matches("cp") {
-            // for sending errors, progress info and other events from worker to ui:
-            let (worker_tx, worker_rx) = channel::<WorkerEvent>();
-            // for sending user input (retry/skip/abort) to worker:
-            let (user_tx, user_rx) = channel::<OperationControl>();
-            // fs walker sends files to operation
-            let (src_tx, src_rx) = channel();
+        // for sending errors, progress info and other events from worker to ui:
+        let (worker_tx, worker_rx) = channel::<WorkerEvent>();
+        // for sending user input (retry/skip/abort) to worker:
+        let (_user_tx, user_rx) = channel::<OperationControl>();
+        // fs walker sends files to operation
+        let (src_tx, src_rx) = channel();
 
-            let operation = OperationCopy::new(&matches, user_rx, worker_tx, src_rx)?;
-            
-            let search_path = operation.search_path();
-            assert!(!search_path.is_empty());
-            SourceWalker::run(src_tx, search_path);
+        let operation = OperationCopy::new(&matches, user_rx, worker_tx, src_rx)?;
+        
+        let search_path = operation.search_path();
+        assert!(!search_path.is_empty());
+        SourceWalker::run(src_tx, search_path);
 
-            let mut stats: OperationStats = Default::default();
+        let mut stats: OperationStats = Default::default();
 
-            let start = Instant::now();
+        let start = Instant::now();
 
-            while let Ok(event) = worker_rx.recv() {
-                match event {
-                    WorkerEvent::Stat(StatsChange::FilesDone) => { stats.files_done += 1 }
-                    WorkerEvent::Stat(StatsChange::FilesTotal) => { *stats.files_total += 1 }
-                    WorkerEvent::Stat(StatsChange::BytesTotal(n)) => { *stats.bytes_total += n },
-                    WorkerEvent::Stat(StatsChange::Current(p, chunk, done, todo)) => {
-                        stats.current_path.set(p);
-                        stats.current_total.set(todo);
-                        stats.current_done = done;
-                        stats.bytes_done += chunk;
-                    }
-                    WorkerEvent::Status(OperationStatus::Error(err)) => {
-                        let answer = self.error_ask(err);
-                        user_tx.send(answer).expect("send");
-                    },
-                    _ => {},
+        while let Ok(event) = worker_rx.recv() {
+            match event {
+                WorkerEvent::Stat(StatsChange::FilesDone) => { stats.files_done += 1 }
+                WorkerEvent::Stat(StatsChange::FilesTotal) => { *stats.files_total += 1 }
+                WorkerEvent::Stat(StatsChange::BytesTotal(n)) => { *stats.bytes_total += n },
+                WorkerEvent::Stat(StatsChange::Current(p, chunk, done, todo)) => {
+                    stats.current_path.set(p);
+                    stats.current_total.set(todo);
+                    stats.current_done = done;
+                    stats.bytes_done += chunk;
                 }
-                self.update_progress(&mut stats);
+                // WorkerEvent::Status(OperationStatus::Error(err)) => {
+                //     let answer = self.error_ask(err);
+                //     user_tx.send(answer).expect("send");
+                // },
+                // _ => {},
             }
-            self.pb_curr.finish();
-            self.pb_files.finish();
-            self.pb_bytes.finish();
-            self.pb_name.finish();
-            let ela = Instant::now().duration_since(start);
-            let _locked = self.pb_done.lock().unwrap();
-            println!("copied {} files ({}) in {} {}/s", *stats.files_total, HumanBytes(*stats.bytes_total as u64), HumanDuration(ela),
-                     self.fmt_speed(*stats.bytes_total, &ela));
+            self.update_progress(&mut stats);
         }
+        self.pb_curr.finish();
+        self.pb_files.finish();
+        self.pb_bytes.finish();
+        self.pb_name.finish();
+        let ela = Instant::now().duration_since(start);
+        let _locked = self.pb_done.lock().unwrap();
+        println!("copied {} files ({}) in {} {}/s", *stats.files_total, HumanBytes(*stats.bytes_total as u64), HumanDuration(ela),
+                 self.fmt_speed(*stats.bytes_total, &ela));
         Ok(())
     }
 

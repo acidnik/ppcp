@@ -1,12 +1,9 @@
 use std::path::PathBuf;
-use clap::{Arg, SubCommand, ArgMatches};
+use clap::ArgMatches;
 use std::sync::mpsc::{Sender, Receiver, channel};
-use std::sync::{Arc, Mutex};
 use std::thread;
-use std::time::Duration;
 use std::fs::{*, self};
 use std::io::{*, self};
-use std::ops::{Deref, DerefMut};
 use std::collections::HashSet;
 
 use crate::app::Result;
@@ -22,22 +19,22 @@ pub enum StatsChange {
 
 #[derive(Clone, PartialEq, Debug)]
 pub enum OperationStatus {
-    Running,
-    Error(String),
-    Done,
+    // Running,
+    // Error(String),
+    // Done,
 }
 
 pub enum OperationControl {
-    Abort,
-    Skip,
-    Retry,
-    SkipAll,
+    // Abort,
+    // Skip,
+    // Retry,
+    // SkipAll,
 }
 
 #[derive(Debug)]
 pub enum WorkerEvent {
     Stat(StatsChange),
-    Status(OperationStatus),
+    // Status(OperationStatus),
 }
 
 pub trait Operation {
@@ -45,7 +42,6 @@ pub trait Operation {
 }
 
 pub struct OperationCopy {
-    dest_dir: PathBuf,
     sources: Vec<PathBuf>,
 }
 
@@ -64,7 +60,7 @@ pub enum OperationError {
 }
 
 impl OperationCopy {
-    pub fn new(matches: &ArgMatches, user_rx: Receiver<OperationControl>, worker_tx: Sender<WorkerEvent>,
+    pub fn new(matches: &ArgMatches, _user_rx: Receiver<OperationControl>, worker_tx: Sender<WorkerEvent>,
                 src_rx: Receiver<(PathBuf, PathBuf)>) -> Result<Self> {
         let source = match matches.values_of("source") {
             Some(files) => files.map(PathBuf::from).collect(),
@@ -104,7 +100,8 @@ impl OperationCopy {
 
         */
         // let dest = dest.canonicalize()?;
-        let dest_parent = dest.parent().ok_or(io::Error::new(io::ErrorKind::Other, "dest.parent?"))?.to_owned();
+        // let dest_parent = dest.parent().ok_or(io::Error::new(io::ErrorKind::Other, "dest.parent?"))?.to_owned();
+        let dest_parent = dest.parent().ok_or_else(|| io::Error::new(io::ErrorKind::Other, "dest.parent?"))?.to_owned();
         if ! dest_parent.exists() {
             fs::create_dir_all(&dest_parent)?;
         }
@@ -138,7 +135,7 @@ impl OperationCopy {
 
         let (q_tx, q_rx) = channel::<(PathBuf, PathBuf, usize)>(); // source_path, source_file, total
         let (d_tx, d_rx) = channel::<(PathBuf, usize, usize, usize)>(); // src_path, chunk, done, total
-        let inner_worker = CopyWorker::new(dest_dir, d_tx, q_rx);
+        CopyWorker::run(dest_dir, d_tx, q_rx);
 
         {
         let worker_tx = worker_tx.clone();
@@ -154,8 +151,8 @@ impl OperationCopy {
         
         {
         thread::spawn(move || {
-            let mut question = "".to_string();
-            let mut skip_all = true;
+            // let mut question = "".to_string();
+            // let mut skip_all = true;
             while let Ok((src, path)) = src_rx.recv() {
 
                 worker_tx.send(WorkerEvent::Stat(StatsChange::FilesTotal)).expect("send");
@@ -166,7 +163,7 @@ impl OperationCopy {
                         worker_tx.send(WorkerEvent::Stat(StatsChange::BytesTotal(size))).expect("send");
                         size
                     },
-                    Err(err) => {
+                    Err(_err) => {
                         // question = format!("{:?}: {}", p, err);
                         0
                         // TODO
@@ -179,7 +176,6 @@ impl OperationCopy {
         });
         }
         Ok(OperationCopy {
-            dest_dir: dest,
             sources: source,
         })
     }
@@ -189,7 +185,7 @@ struct CopyWorker {
 }
 
 impl CopyWorker {
-    fn new(dest: PathBuf, tx: Sender<(PathBuf, usize, usize, usize)>, rx: Receiver<(PathBuf, PathBuf, usize)>) -> Self {
+    fn run(dest: PathBuf, tx: Sender<(PathBuf, usize, usize, usize)>, rx: Receiver<(PathBuf, PathBuf, usize)>) {
         thread::spawn(move || {
             let mut mkdird = HashSet::new();
             // println!("dest = {:?}", dest);
@@ -228,7 +224,7 @@ impl CopyWorker {
                             if ds == 0 {
                                 break;
                             }
-                            fw.write(&mut buf[..ds]).unwrap();
+                            fw.write_all(&buf[..ds]).unwrap();
                             tx.send((p.clone(), ds, s, sz)).unwrap();
                         }
                         Err(e) => {
@@ -239,6 +235,5 @@ impl CopyWorker {
                 }
             }
         });
-        CopyWorker {}
     }
 }
