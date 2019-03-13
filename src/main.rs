@@ -10,6 +10,7 @@ use std::error;
 
 mod app;
 mod copy;
+mod avgspeed;
 
 fn main() -> Result<(), Box<error::Error>> {
     let matches = App::new("ppcp")

@@ -9,9 +9,11 @@ use std::sync::*;
 use std::ops::{Deref, DerefMut};
 
 use copy::*;
+use avgspeed::*;
 
 pub type Result<T> = std::result::Result<T, Error>;
 
+/// utility to track changes of variable
 #[derive(Default, Clone)]
 pub struct TrackChange<T: PartialEq> {
     val: T,
@@ -74,15 +76,6 @@ impl Default for OperationStats {
     }
 }
 
-pub struct App {
-    pb_curr: ProgressBar,
-    pb_files: ProgressBar,
-    pb_bytes: ProgressBar,
-    pb_name: ProgressBar,
-    last_update: Instant,
-    pb_done: Arc<Mutex<()>>,
-}
-
 struct SourceWalker {
 }
 
@@ -108,9 +101,21 @@ impl SourceWalker {
     }
 }
 
+pub struct App {
+    pb_curr: ProgressBar,
+    pb_files: ProgressBar,
+    pb_bytes: ProgressBar,
+    pb_name: ProgressBar,
+    last_update: Instant,
+    pb_done: Arc<Mutex<()>>,
+    avg_speed: AvgSpeed,
+}
+
 impl App {
     pub fn new() -> Self {
         let pb_name = ProgressBar::with_draw_target(10, ProgressDrawTarget::stdout_nohz());
+        // \u{00A0} (nbsp) to make indicatif draw lines as wide as possible
+        // otherwise it leaves leftovers from prev lines at the end of lines
         pb_name.set_style(ProgressStyle::default_spinner()
             .template("{spinner} {wide_msg} \u{00A0}")
         );
@@ -120,11 +125,12 @@ impl App {
         );
         let pb_files = ProgressBar::with_draw_target(10, ProgressDrawTarget::stdout_nohz());
         pb_files.set_style(ProgressStyle::default_bar()
-            .template("files   {bar:40} {pos:>8}/{len:<8} {elapsed:>5} {wide_msg} \u{00A0}")
+            .template("files   {bar:40} {pos:>8}/{len:<8} {wide_msg} \u{00A0}")
         );
         let pb_bytes = ProgressBar::with_draw_target(10, ProgressDrawTarget::stdout_nohz());
         pb_bytes.set_style(ProgressStyle::default_bar()
             .template("bytes   {bar:40} {bytes:>8}/{total_bytes:<8} {elapsed:>5} ETA {eta} {wide_msg} \u{00A0}")
+            // .progress_chars("=> ")
         );
         let multi_pb = MultiProgress::new();
         let pb_name = multi_pb.add(pb_name);
@@ -146,6 +152,7 @@ impl App {
             pb_name,
             last_update: Instant::now(),
             pb_done,
+            avg_speed: AvgSpeed::new(),
         }
     }
 
@@ -163,15 +170,14 @@ impl App {
         if stats.current_path.changed() {
             self.pb_name.set_message(&format!("{}", stats.current_path.display()));
             self.pb_curr.set_length(*stats.current_total as u64);
-            stats.current_start = Instant::now();
+            stats.current_start = Instant::now(); // This is inaccurate. Init current_start in copy worker and send instant with path?
             self.pb_curr.reset_elapsed();
             self.pb_curr.reset_eta();
         }
         self.pb_curr.set_draw_delta(0);
         self.pb_curr.set_position(stats.current_done as u64);
-        // TODO show only measures of last N reads?
-        let curr_duration = Instant::now().duration_since(stats.current_start);
-        self.pb_curr.set_message(&format!("{}/s", self.fmt_speed(stats.current_done, &curr_duration)));
+        self.avg_speed.add(stats.bytes_done);
+        self.pb_curr.set_message(&format!("{}/s", HumanBytes(self.avg_speed.get() as u64)));
 
         if stats.files_total.changed() {
             self.pb_files.set_length(*stats.files_total as u64);
@@ -228,28 +234,7 @@ impl App {
         let ela = Instant::now().duration_since(start);
         let _locked = self.pb_done.lock().unwrap();
         println!("copied {} files ({}) in {} {}/s", *stats.files_total, HumanBytes(*stats.bytes_total as u64), HumanDuration(ela),
-                 self.fmt_speed(*stats.bytes_total, &ela));
+                 HumanBytes(get_speed(*stats.bytes_total, &ela) as u64));
         Ok(())
     }
-
-    fn fmt_speed(&self, x: usize, ela: &Duration) -> String {
-        let speed = if *ela > Duration::from_secs(1) {
-            x / ela.as_secs() as usize
-        }
-        else if *ela > Duration::from_micros(1) && x < std::usize::MAX/1000 {
-            x * 1000 / ela.as_micros() as usize
-        }
-        else if *ela > Duration::from_millis(1) && x < std::usize::MAX/1_000_000 {
-            x * 1_000_000 / ela.as_millis() as usize
-        }
-        else if *ela > Duration::from_nanos(1) && x < std::usize::MAX/1_000_000_000 {
-            x * 1_000_000_000 / ela.as_millis() as usize
-        }
-        else {
-            // what the hell are you?
-            0
-        };
-        format!("{}", HumanBytes(speed as u64))
-    }
-
 }

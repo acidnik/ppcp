@@ -5,6 +5,7 @@ use std::thread;
 use std::fs::{*, self};
 use std::io::{*, self};
 use std::collections::HashSet;
+use std::time::Duration;
 
 use crate::app::Result;
 
@@ -136,6 +137,7 @@ impl OperationCopy {
         let (q_tx, q_rx) = channel::<(PathBuf, PathBuf, usize)>(); // source_path, source_file, total
         let (d_tx, d_rx) = channel::<(PathBuf, usize, usize, usize)>(); // src_path, chunk, done, total
         CopyWorker::run(dest_dir, d_tx, q_rx);
+        // MockCopyWorker::run(dest_dir, d_tx, q_rx);
 
         {
         let worker_tx = worker_tx.clone();
@@ -232,6 +234,27 @@ impl CopyWorker {
                             break;
                         }
                     }
+                }
+            }
+        });
+    }
+}
+
+struct MockCopyWorker {}
+
+impl MockCopyWorker {
+    fn run(dest: PathBuf, tx: Sender<(PathBuf, usize, usize, usize)>, rx: Receiver<(PathBuf, PathBuf, usize)>) {
+        let delay = Duration::from_millis(5);
+        let chunk = 1_048_576;
+        thread::spawn(move || {
+            for (src, p, sz) in rx.iter() {
+                let mut s = 0;
+                while s < sz {
+                    let ds = if s + chunk > sz { sz - s } else { chunk };
+                    s += ds;
+                    let delay = Duration::from_micros((ds / chunk * 1000) as u64);
+                    tx.send((p.clone(), ds, s, sz)).unwrap();
+                    thread::sleep(delay);
                 }
             }
         });
