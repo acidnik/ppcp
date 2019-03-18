@@ -3,6 +3,7 @@ extern crate clap;
 extern crate walkdir;
 extern crate indicatif;
 extern crate pathdiff;
+extern crate path_abs;
 
 use clap::{Arg, App};
 

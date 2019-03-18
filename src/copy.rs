@@ -76,32 +76,7 @@ impl OperationCopy {
             Some(file) => PathBuf::from(file),
             None => Err(OperationError::ArgumentsMissing)?,
         };
-        /*
-            source: file or dir (SF, SD)
-            source multiple: all files, all dirs, mixed (SAF, SAD, SAM)
-
-            dest: exists or not exists (DE, DN)
-            dest exists: dir or file (DD, DF)
-	    list(itertools.product(['SF', 'SD' 'SAF', 'SAD', 'SAM'], ['DN', 'DD','DF'],))
-	    [('SF', 'DN'), -- copy file to file (create dir + create file)
-	    ('SF', 'DD'),  -- copy file into dir (create file)
-	    ('SF', 'DF'),  -- copy file to file (overwrite)
-	    ('SD', 'DN'),  -- copy dir into dir: cp /foo/bar /zzz/abc -> mkdir /zzz/abc/bar
-	    ('SD', 'DD'),  -- copy dir into existing dir: cp /foo/bar /zzz/abc -> /zzz/abc/bar
-	    ('SD', 'DF'),  -- ERROR
-	    ('SAF', 'DN'), -- copy all files to dir
-	    ('SAF', 'DD'), -- copy all files to dir (mkdir)
-	    ('SAF', 'DF'), -- ERROR
-	    ('SAD', 'DN'), -- copy all dirs to dir (mkdir) cp /aaa /bbb /ccc -> /ccc/aaa, /ccc/bbb
-	    ('SAD', 'DD'), -- same
-	    ('SAD', 'DF'), -- ERROR
-	    ('SAM', 'DN'), -- copy dirs and files to new dir
-	    ('SAM', 'DD'), -- copy dirs and files to dir
-	    ('SAM', 'DF')] -- ERROR
-
-        */
-        // let dest = dest.canonicalize()?;
-        // let dest_parent = dest.parent().ok_or(io::Error::new(io::ErrorKind::Other, "dest.parent?"))?.to_owned();
+        
         let dest_parent = dest.parent().ok_or_else(|| io::Error::new(io::ErrorKind::Other, "dest.parent?"))?.to_owned();
         if ! dest_parent.exists() {
             fs::create_dir_all(&dest_parent)?;
@@ -151,7 +126,6 @@ impl OperationCopy {
         });
         }
         
-        {
         thread::spawn(move || {
             // let mut question = "".to_string();
             // let mut skip_all = true;
@@ -174,9 +148,7 @@ impl OperationCopy {
                 };
                 q_tx.send((src, path, size)).expect("send");
             }
-            drop(q_tx);
         });
-        }
         Ok(OperationCopy {
             sources: source,
         })
@@ -190,8 +162,6 @@ impl CopyWorker {
     fn run(dest: PathBuf, tx: Sender<(PathBuf, usize, usize, usize)>, rx: Receiver<(PathBuf, PathBuf, usize)>) {
         thread::spawn(move || {
             let mut mkdird = HashSet::new();
-            // println!("dest = {:?}", dest);
-            // return;
             for (src, p, sz) in rx.iter() {
                 let r = if src.is_file() {
                     p.file_name().unwrap().into()
@@ -211,11 +181,7 @@ impl CopyWorker {
                     fs::create_dir_all(&dest_dir).unwrap();
                     mkdird.insert(dest_dir.clone());
                 }
-                // println!("{:?} -> {:?} | r = {:?}", p, dest_file, r);
-                // continue;
-                // let mut fr = BufReader::new(File::open(&p).unwrap());
-                // let mut fw = BufWriter::new(File::create(&dest_file).unwrap());
-                let mut fr = File::open(&p).unwrap();
+                let mut fr = BufReader::new(File::open(&p).unwrap());
                 let mut fw = BufWriter::new(File::create(&dest_file).unwrap());
                 let mut buf = vec![0; 10_000_000];
                 let mut s = 0;
@@ -244,7 +210,6 @@ struct MockCopyWorker {}
 
 impl MockCopyWorker {
     fn run(dest: PathBuf, tx: Sender<(PathBuf, usize, usize, usize)>, rx: Receiver<(PathBuf, PathBuf, usize)>) {
-        let delay = Duration::from_millis(5);
         let chunk = 1_048_576;
         thread::spawn(move || {
             for (src, p, sz) in rx.iter() {
@@ -252,7 +217,7 @@ impl MockCopyWorker {
                 while s < sz {
                     let ds = if s + chunk > sz { sz - s } else { chunk };
                     s += ds;
-                    let delay = Duration::from_micros((ds / chunk * 1000) as u64);
+                    let delay = Duration::from_micros((ds / chunk * 100_000) as u64);
                     tx.send((p.clone(), ds, s, sz)).unwrap();
                     thread::sleep(delay);
                 }

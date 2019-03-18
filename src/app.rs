@@ -2,6 +2,7 @@ use failure::Error;
 use clap::ArgMatches;
 use std::thread;
 use std::path::PathBuf;
+use path_abs::PathArc;
 use std::sync::mpsc::*;
 use std::time::*;
 use indicatif::*;
@@ -83,7 +84,7 @@ impl SourceWalker {
     fn run(tx: Sender<(PathBuf, PathBuf)>, sources: Vec<PathBuf>) {
         thread::spawn(move || {
             for src in sources {
-                let src = src.canonicalize().unwrap();
+                let src = PathArc::new(&src).absolute().unwrap().as_path().to_owned();
                 for entry in walkdir::WalkDir::new(src.clone()) {
                     match entry {
                         Ok(entry) => {
@@ -193,7 +194,7 @@ impl App {
     pub fn run(&mut self, matches: &ArgMatches) -> Result<()> {
         // for sending errors, progress info and other events from worker to ui:
         let (worker_tx, worker_rx) = channel::<WorkerEvent>();
-        // for sending user input (retry/skip/abort) to worker:
+        // TODO for sending user input (retry/skip/abort) to worker:
         let (_user_tx, user_rx) = channel::<OperationControl>();
         // fs walker sends files to operation
         let (src_tx, src_rx) = channel();
