@@ -9,6 +9,6 @@ clap = "*"
 failure = "*"
 walkdir = "*"
 # rand = { git = "https://github.com/rust-lang-nursery/rand" }
-indicatif = "*"
+indicatif = { git = "https://github.com/acidnik/indicatif"}
 pathdiff = "*"
 path_abs = "*"

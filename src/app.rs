@@ -183,7 +183,7 @@ impl App {
         if stats.files_total.changed() {
             self.pb_files.set_length(*stats.files_total as u64);
         }
-        self.pb_files.set_position(stats.files_done as u64);
+        self.pb_files.set_position(u64::from(stats.files_done));
         
         if stats.bytes_total.changed() {
             self.pb_bytes.set_length(*stats.bytes_total as u64);
@@ -218,7 +218,7 @@ impl App {
                     stats.current_path.set(p);
                     stats.current_total.set(todo);
                     stats.current_done = done;
-                    stats.bytes_done += chunk as u64;
+                    stats.bytes_done += u64::from(chunk);
                 }
                 // WorkerEvent::Status(OperationStatus::Error(err)) => {
                 //     let answer = self.error_ask(err);
