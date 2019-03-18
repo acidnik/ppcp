@@ -81,15 +81,19 @@ struct SourceWalker {
 }
 
 impl SourceWalker {
-    fn run(tx: Sender<(PathBuf, PathBuf)>, sources: Vec<PathBuf>) {
+    fn run(tx: Sender<(PathBuf, PathBuf, u64, std::fs::Permissions, bool)>, sources: Vec<PathBuf>) {
         thread::spawn(move || {
             for src in sources {
                 let src = PathArc::new(&src).absolute().unwrap().as_path().to_owned();
                 for entry in walkdir::WalkDir::new(src.clone()) {
                     match entry {
                         Ok(entry) => {
-                            if entry.file_type().is_file() {
-                                tx.send((src.clone(), entry.into_path())).expect("send");
+                            if entry.file_type().is_file() || entry.path_is_symlink() {
+                                let m = entry.metadata().unwrap();
+                                let size = m.len();
+                                let perm = m.permissions();
+                                let is_link = m.file_type().is_symlink();
+                                tx.send((src.clone(), entry.into_path(), size, perm, is_link)).expect("send");
                             }
                         }
                         Err(_) => {
@@ -211,9 +215,11 @@ impl App {
 
         while let Ok(event) = worker_rx.recv() {
             match event {
-                WorkerEvent::Stat(StatsChange::FilesDone) => { stats.files_done += 1 }
-                WorkerEvent::Stat(StatsChange::FilesTotal) => { *stats.files_total += 1 }
-                WorkerEvent::Stat(StatsChange::BytesTotal(n)) => { *stats.bytes_total += n },
+                WorkerEvent::Stat(StatsChange::FileDone) => { stats.files_done += 1 }
+                WorkerEvent::Stat(StatsChange::BytesTotal(n)) => {
+                    *stats.bytes_total += n;
+                    *stats.files_total += 1;
+                },
                 WorkerEvent::Stat(StatsChange::Current(p, chunk, done, todo)) => {
                     stats.current_path.set(p);
                     stats.current_total.set(todo);

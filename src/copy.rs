@@ -12,8 +12,7 @@ use crate::app::Result;
 
 #[derive(Clone, PartialEq, Debug)]
 pub enum StatsChange {
-    FilesDone, // no usize sinct in's just +1,
-    FilesTotal, // same
+    FileDone, 
     BytesTotal(u64),
     Current(PathBuf, u32, u64, u64),
 }
@@ -62,7 +61,7 @@ pub enum OperationError {
 
 impl OperationCopy {
     pub fn new(matches: &ArgMatches, _user_rx: Receiver<OperationControl>, worker_tx: Sender<WorkerEvent>,
-                src_rx: Receiver<(PathBuf, PathBuf)>) -> Result<Self> {
+                src_rx: Receiver<(PathBuf, PathBuf, u64, Permissions, bool)>) -> Result<Self> {
         let source = match matches.values_of("source") {
             Some(files) => files.map(PathBuf::from).collect(),
             None => Vec::new(),
@@ -88,7 +87,7 @@ impl OperationCopy {
             (false, dest.clone())
         }
         else {
-            let meta = fs::metadata(&dest)?;
+            let meta = fs::symlink_metadata(&dest)?;
             if meta.is_file() {
                 // cp /path/to/file.txt ./here/file.txt: dest_dir = ./here
                 (true, dest_parent)
@@ -99,7 +98,7 @@ impl OperationCopy {
             }
         };
         for src in source.iter() {
-            let meta = fs::metadata(&src)?;
+            let meta = fs::symlink_metadata(&src)?;
             if dest_is_file && meta.is_dir() {
                 Err(OperationError::DirOverFile{src: src.display().to_string(), dest: dest.display().to_string()})?
             }
@@ -109,7 +108,7 @@ impl OperationCopy {
         }
         let dest_dir = dest_dir.canonicalize()?;
 
-        let (q_tx, q_rx) = channel::<(PathBuf, PathBuf, u64)>(); // source_path, source_file, total
+        let (q_tx, q_rx) = channel::<(PathBuf, PathBuf, u64, Permissions, bool)>(); // source_path, source_file, total, 
         let (d_tx, d_rx) = channel::<(PathBuf, u32, u64, u64)>(); // src_path, chunk, done, total
         CopyWorker::run(dest_dir, d_tx, q_rx);
         // MockCopyWorker::run(dest_dir, d_tx, q_rx);
@@ -120,7 +119,7 @@ impl OperationCopy {
             for (p, chunk, done, todo) in d_rx.iter() {
                 worker_tx.send(WorkerEvent::Stat(StatsChange::Current(p, chunk, done, todo))).expect("send");
                 if done >= todo {
-                    worker_tx.send(WorkerEvent::Stat(StatsChange::FilesDone)).expect("send");
+                    worker_tx.send(WorkerEvent::Stat(StatsChange::FileDone)).expect("send");
                 }
             }
         });
@@ -129,24 +128,11 @@ impl OperationCopy {
         thread::spawn(move || {
             // let mut question = "".to_string();
             // let mut skip_all = true;
-            while let Ok((src, path)) = src_rx.recv() {
+            while let Ok((src, path, size, perm, is_link)) = src_rx.recv() {
 
-                worker_tx.send(WorkerEvent::Stat(StatsChange::FilesTotal)).expect("send");
+                worker_tx.send(WorkerEvent::Stat(StatsChange::BytesTotal(size))).expect("send");
 
-                let size = match fs::metadata(&path) {
-                    Ok(m) => {
-                        let size = m.len() as u64;
-                        worker_tx.send(WorkerEvent::Stat(StatsChange::BytesTotal(size))).expect("send");
-                        size
-                    },
-                    Err(_err) => {
-                        // question = format!("{:?}: {}", p, err);
-                        0
-                        // TODO
-                        // println!("{}", question);
-                    },
-                };
-                q_tx.send((src, path, size)).expect("send");
+                q_tx.send((src, path, size, perm, is_link)).expect("send");
             }
         });
         Ok(OperationCopy {
@@ -159,10 +145,10 @@ struct CopyWorker {
 }
 
 impl CopyWorker {
-    fn run(dest: PathBuf, tx: Sender<(PathBuf, u32, u64, u64)>, rx: Receiver<(PathBuf, PathBuf, u64)>) {
+    fn run(dest: PathBuf, tx: Sender<(PathBuf, u32, u64, u64)>, rx: Receiver<(PathBuf, PathBuf, u64, Permissions, bool)>) {
         thread::spawn(move || {
             let mut mkdird = HashSet::new();
-            for (src, p, sz) in rx.iter() {
+            for (src, p, sz, perm, is_link) in rx.iter() {
                 let r = if src.is_file() {
                     p.file_name().unwrap().into()
                 }
@@ -181,8 +167,18 @@ impl CopyWorker {
                     fs::create_dir_all(&dest_dir).unwrap();
                     mkdird.insert(dest_dir.clone());
                 }
+                
+                if is_link {
+                    std::os::unix::fs::symlink(&p, &dest_file).unwrap();
+                    tx.send((p, sz as u32, sz, sz)).unwrap();
+                    continue;
+                }
+
+                let fwh = File::create(&dest_file).unwrap();
+                fwh.set_permissions(perm).unwrap();
+
                 let mut fr = BufReader::new(File::open(&p).unwrap());
-                let mut fw = BufWriter::new(File::create(&dest_file).unwrap());
+                let mut fw = BufWriter::new(fwh);
                 let mut buf = vec![0; 10_000_000];
                 let mut s: u64 = 0;
                 loop {
