@@ -2,11 +2,13 @@
 name = "ppcp"
 version = "0.1.0"
 authors = ["Nikita Bilous <nikita@bilous.me>"]
+license = "MIT"
 
 [dependencies]
 clap = "*"
 failure = "*"
 walkdir = "*"
+# rand = { git = "https://github.com/rust-lang-nursery/rand" }
 indicatif = "*"
 pathdiff = "*"
 path_abs = "*"
