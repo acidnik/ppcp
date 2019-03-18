@@ -52,12 +52,12 @@ impl<T: PartialEq> DerefMut for TrackChange<T> {
 }
 
 pub struct OperationStats {
-    files_done: usize,
-    bytes_done: usize,
-    files_total: TrackChange<usize>,
-    bytes_total: TrackChange<usize>,
-    current_total: TrackChange<usize>,
-    current_done: usize,
+    files_done: u32,
+    bytes_done: u64,
+    files_total: TrackChange<u64>,
+    bytes_total: TrackChange<u64>,
+    current_total: TrackChange<u64>,
+    current_done: u64,
     current_path: TrackChange<PathBuf>,
     current_start: Instant,
 }
@@ -218,7 +218,7 @@ impl App {
                     stats.current_path.set(p);
                     stats.current_total.set(todo);
                     stats.current_done = done;
-                    stats.bytes_done += chunk;
+                    stats.bytes_done += chunk as u64;
                 }
                 // WorkerEvent::Status(OperationStatus::Error(err)) => {
                 //     let answer = self.error_ask(err);

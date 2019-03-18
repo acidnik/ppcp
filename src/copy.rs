@@ -14,8 +14,8 @@ use crate::app::Result;
 pub enum StatsChange {
     FilesDone, // no usize sinct in's just +1,
     FilesTotal, // same
-    BytesTotal(usize),
-    Current(PathBuf, usize, usize, usize),
+    BytesTotal(u64),
+    Current(PathBuf, u32, u64, u64),
 }
 
 #[derive(Clone, PartialEq, Debug)]
@@ -109,8 +109,8 @@ impl OperationCopy {
         }
         let dest_dir = dest_dir.canonicalize()?;
 
-        let (q_tx, q_rx) = channel::<(PathBuf, PathBuf, usize)>(); // source_path, source_file, total
-        let (d_tx, d_rx) = channel::<(PathBuf, usize, usize, usize)>(); // src_path, chunk, done, total
+        let (q_tx, q_rx) = channel::<(PathBuf, PathBuf, u64)>(); // source_path, source_file, total
+        let (d_tx, d_rx) = channel::<(PathBuf, u32, u64, u64)>(); // src_path, chunk, done, total
         CopyWorker::run(dest_dir, d_tx, q_rx);
         // MockCopyWorker::run(dest_dir, d_tx, q_rx);
 
@@ -135,7 +135,7 @@ impl OperationCopy {
 
                 let size = match fs::metadata(&path) {
                     Ok(m) => {
-                        let size = m.len() as usize;
+                        let size = m.len() as u64;
                         worker_tx.send(WorkerEvent::Stat(StatsChange::BytesTotal(size))).expect("send");
                         size
                     },
@@ -159,7 +159,7 @@ struct CopyWorker {
 }
 
 impl CopyWorker {
-    fn run(dest: PathBuf, tx: Sender<(PathBuf, usize, usize, usize)>, rx: Receiver<(PathBuf, PathBuf, usize)>) {
+    fn run(dest: PathBuf, tx: Sender<(PathBuf, u32, u64, u64)>, rx: Receiver<(PathBuf, PathBuf, u64)>) {
         thread::spawn(move || {
             let mut mkdird = HashSet::new();
             for (src, p, sz) in rx.iter() {
@@ -184,16 +184,16 @@ impl CopyWorker {
                 let mut fr = BufReader::new(File::open(&p).unwrap());
                 let mut fw = BufWriter::new(File::create(&dest_file).unwrap());
                 let mut buf = vec![0; 10_000_000];
-                let mut s = 0;
+                let mut s: u64 = 0;
                 loop {
                     match fr.read(&mut buf) {
                         Ok(ds) => {
-                            s += ds;
+                            s += ds as u64;
                             if ds == 0 {
                                 break;
                             }
                             fw.write_all(&buf[..ds]).unwrap();
-                            tx.send((p.clone(), ds, s, sz)).unwrap();
+                            tx.send((p.clone(), ds as u32, s, sz)).unwrap();
                         }
                         Err(e) => {
                             println!("{:?}", e);
@@ -209,16 +209,16 @@ impl CopyWorker {
 struct MockCopyWorker {}
 
 impl MockCopyWorker {
-    fn run(dest: PathBuf, tx: Sender<(PathBuf, usize, usize, usize)>, rx: Receiver<(PathBuf, PathBuf, usize)>) {
+    fn run(dest: PathBuf, tx: Sender<(PathBuf, u32, u64, u64)>, rx: Receiver<(PathBuf, PathBuf, u64)>) {
         let chunk = 1_048_576;
         thread::spawn(move || {
-            for (src, p, sz) in rx.iter() {
+            for (_src, p, sz) in rx.iter() {
                 let mut s = 0;
                 while s < sz {
                     let ds = if s + chunk > sz { sz - s } else { chunk };
                     s += ds;
                     let delay = Duration::from_micros((ds / chunk * 100_000) as u64);
-                    tx.send((p.clone(), ds, s, sz)).unwrap();
+                    tx.send((p.clone(), ds as u32, s, sz)).unwrap();
                     thread::sleep(delay);
                 }
             }
