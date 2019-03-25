@@ -169,13 +169,14 @@ impl CopyWorker {
                 }
                 
                 if is_link {
-                    std::os::unix::fs::symlink(&p, &dest_file).unwrap();
+                    std::os::unix::fs::symlink(&p, &dest_file).unwrap_or(()); // FIXME 
+                    // std::os::unix::fs::symlink(&p, &dest_file).unwrap(); // FIXME 
                     tx.send((p, sz as u32, sz, sz)).unwrap();
                     continue;
                 }
 
                 let fwh = File::create(&dest_file).unwrap();
-                fwh.set_permissions(perm).unwrap();
+                fwh.set_permissions(perm).unwrap_or(()); // works on unix fs only
 
                 let mut fr = BufReader::new(File::open(&p).unwrap());
                 let mut fw = BufWriter::new(fwh);
