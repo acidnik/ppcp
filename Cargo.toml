@@ -3,6 +3,9 @@ name = "ppcp"
 version = "0.1.0"
 authors = ["Nikita Bilous <nikita@bilous.me>"]
 license = "MIT"
+description = "Tool for copying files in console with neat progress bars"
+repository = "https://github.com/acidnik/ppcp"
+readme = "README.md"
 
 [dependencies]
 clap = "*"
