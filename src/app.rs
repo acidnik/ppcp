@@ -2,7 +2,7 @@ use failure::Error;
 use clap::ArgMatches;
 use std::thread;
 use std::path::PathBuf;
-use path_abs::PathArc;
+use path_abs::PathAbs;
 use std::sync::mpsc::*;
 use std::time::*;
 use indicatif::*;
@@ -84,7 +84,8 @@ impl SourceWalker {
     fn run(tx: Sender<(PathBuf, PathBuf, u64, std::fs::Permissions, bool)>, sources: Vec<PathBuf>) {
         thread::spawn(move || {
             for src in sources {
-                let src = PathArc::new(&src).absolute().unwrap().as_path().to_owned();
+                // let src = PathAbs::new(&src).unwrap().as_path().to_owned();
+                let src = src.canonicalize().unwrap();
                 for entry in walkdir::WalkDir::new(src.clone()) {
                     match entry {
                         Ok(entry) => {
