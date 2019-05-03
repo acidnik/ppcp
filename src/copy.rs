@@ -169,8 +169,11 @@ impl CopyWorker {
                 }
                 
                 if is_link {
-                    std::os::unix::fs::symlink(&p, &dest_file).unwrap_or(()); // FIXME 
-                    // std::os::unix::fs::symlink(&p, &dest_file).unwrap(); // FIXME 
+                    let link_dest = std::fs::read_link(&p).unwrap();
+                    std::os::unix::fs::symlink(&link_dest, &dest_file).unwrap_or_else(|err| {
+                        eprintln!("Error creating symlink: {}", err);
+                        ()
+                    }); // FIXME 
                     tx.send((p, sz as u32, sz, sz)).unwrap();
                     continue;
                 }
