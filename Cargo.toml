@@ -11,7 +11,6 @@ readme = "README.md"
 clap = "*"
 failure = "*"
 walkdir = "*"
-# rand = { git = "https://github.com/rust-lang-nursery/rand" }
-indicatif = { git = "https://github.com/acidnik/indicatif"}
+indicatif = { git = "https://github.com/mitsuhiko/indicatif" }
 pathdiff = "*"
 path_abs = { git = "https://github.com/vitiral/path_abs" }

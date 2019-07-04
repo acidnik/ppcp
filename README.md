@@ -3,6 +3,8 @@ ppcp
 
 Command-line tool for copying files and directories with progress bar
 
+![](https://github.com/acidnik/ppcp/raw/master/demo.gif)
+
 WARNING
 =======
 
