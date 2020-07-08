@@ -8,9 +8,9 @@ repository = "https://github.com/acidnik/ppcp"
 readme = "README.md"
 
 [dependencies]
-clap = "*"
-failure = "*"
-walkdir = "*"
-indicatif = { git = "https://github.com/mitsuhiko/indicatif" }
-pathdiff = "*"
-path_abs = { git = "https://github.com/vitiral/path_abs" }
+clap = "2.32.9"
+failure = "0.1.5"
+walkdir = "2.2.7"
+indicatif = "0.15.0"
+pathdiff = "0.1.0"
+path_abs = "0.5.0"
