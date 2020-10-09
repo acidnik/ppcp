@@ -170,6 +170,7 @@ impl CopyWorker {
                 
                 if is_link {
                     let link_dest = std::fs::read_link(&p).unwrap();
+                    #[cfg(target_os = "unix")]
                     std::os::unix::fs::symlink(&link_dest, &dest_file).unwrap_or_else(|err| {
                         eprintln!("Error creating symlink: {}", err);
                         ()
