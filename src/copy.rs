@@ -175,6 +175,13 @@ impl CopyWorker {
                         eprintln!("Error creating symlink: {}", err);
                         ()
                     }); // FIXME 
+
+                    #[cfg(target_os = "windows")]
+                    std::os::windows::fs::symlink_file(&link_dest, &dest_file).unwrap_or_else(|err| {
+                        eprintln!("Error creating symlink: {}", err);
+                        ()
+                    }); // FIXME 
+
                     tx.send((p, sz as u32, sz, sz)).unwrap();
                     continue;
                 }
