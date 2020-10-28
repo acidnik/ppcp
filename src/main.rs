@@ -13,7 +13,7 @@ mod app;
 mod copy;
 mod avgspeed;
 
-fn main() -> Result<(), Box<error::Error>> {
+fn main() -> Result<(), Box<dyn error::Error>> {
     let matches = App::new("ppcp")
         .version("0.0.1")
         .author("Nikita Bilous <nikita@bilous.me>")

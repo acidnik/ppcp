@@ -170,10 +170,18 @@ impl CopyWorker {
                 
                 if is_link {
                     let link_dest = std::fs::read_link(&p).unwrap();
+                    #[cfg(target_os = "unix")]
                     std::os::unix::fs::symlink(&link_dest, &dest_file).unwrap_or_else(|err| {
                         eprintln!("Error creating symlink: {}", err);
                         ()
                     }); // FIXME 
+
+                    #[cfg(target_os = "windows")]
+                    std::os::windows::fs::symlink_file(&link_dest, &dest_file).unwrap_or_else(|err| {
+                        eprintln!("Error creating symlink: {}", err);
+                        ()
+                    }); // FIXME 
+
                     tx.send((p, sz as u32, sz, sz)).unwrap();
                     continue;
                 }
