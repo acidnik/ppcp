@@ -5,7 +5,7 @@ extern crate indicatif;
 extern crate path_abs;
 extern crate pathdiff;
 extern crate walkdir;
-use clap::{arg, command, value_parser, ArgAction, Command};
+use clap::{arg, command, value_parser};
 use std::path::PathBuf;
 
 use std::error;
@@ -14,9 +14,8 @@ mod app;
 mod avgspeed;
 mod copy;
 
-fn main() -> Result<(), Box<error::Error>> {
+fn main() -> Result<(), Box<dyn error::Error>> {
     let matches = command!()
-        .arg(arg!(["ppcp"]))
         .version("0.0.1")
         .author("Nikita Bilous <nikita@bilous.me>")
         .about("Copy files in console with progress bar")
