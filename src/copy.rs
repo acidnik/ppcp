@@ -1,18 +1,18 @@
-use std::path::PathBuf;
 use clap::ArgMatches;
-use std::sync::mpsc::{Sender, Receiver, channel};
-use std::thread;
-use std::fs::{*, self};
-use std::io::{*, self};
+use std::collections::binary_heap::Iter;
 use std::collections::HashSet;
+use std::fs::{self, *};
+use std::io::{self, *};
+use std::path::PathBuf;
+use std::sync::mpsc::{channel, Receiver, Sender};
+use std::thread;
 use std::time::Duration;
 
 use crate::app::Result;
 
-
 #[derive(Clone, PartialEq, Debug)]
 pub enum StatsChange {
-    FileDone, 
+    FileDone,
     BytesTotal(u64),
     Current(PathBuf, u32, u64, u64),
 }
@@ -56,124 +56,152 @@ pub enum OperationError {
     #[fail(display = "Arguments missing")]
     ArgumentsMissing,
     #[fail(display = "Can not copy directory {} to file {}", src, dest)]
-    DirOverFile {src: String, dest: String},
+    DirOverFile { src: String, dest: String },
 }
 
 impl OperationCopy {
-    pub fn new(matches: &ArgMatches, _user_rx: Receiver<OperationControl>, worker_tx: Sender<WorkerEvent>,
-                src_rx: Receiver<(PathBuf, PathBuf, u64, Permissions, bool)>) -> Result<Self> {
-        let source = match matches.values_of("source") {
-            Some(files) => files.map(PathBuf::from).collect(),
-            None => Vec::new(),
-        };
-        if source.is_empty() {
-            println!("{:?}", source);
-            Err(OperationError::ArgumentsMissing)?;
-        }
-        
-        let dest = match matches.value_of("dest") {
-            Some(file) => PathBuf::from(file),
-            None => Err(OperationError::ArgumentsMissing)?,
-        };
-        
-        let dest_parent = dest.parent().ok_or_else(|| io::Error::new(io::ErrorKind::Other, "dest.parent?"))?.to_owned();
-        if ! dest_parent.exists() {
+    pub fn new(
+        matches: &ArgMatches,
+        _user_rx: Receiver<OperationControl>,
+        worker_tx: Sender<WorkerEvent>,
+        src_rx: Receiver<(PathBuf, PathBuf, u64, Permissions, bool)>,
+    ) -> Result<Self> {
+        let path = matches
+            .get_many::<PathBuf>("source")
+            .ok_or(OperationError::ArgumentsMissing)
+            .unwrap();
+
+        let source = path
+            .into_iter()
+            .map(|p| p.to_path_buf())
+            .collect::<Vec<PathBuf>>();
+        println!("Source {:?}", source);
+        let dest: &PathBuf = matches
+            .get_one::<PathBuf>("dest")
+            .ok_or(OperationError::ArgumentsMissing)
+            .unwrap();
+        println!("destination {:?}", dest);
+        let dest_parent = dest
+            .parent()
+            .ok_or_else(|| io::Error::new(io::ErrorKind::Other, "dest.parent?"))?
+            .to_owned();
+        if !dest_parent.exists() {
             fs::create_dir_all(&dest_parent)?;
         }
+
         let (dest_is_file, dest_dir) = if !dest.exists() {
             // if dest not exists - consider it a dir
             // cp /path/to/dir . -> must create dir and set it as dest
             // cp /dir1 /dir2 /file . -> cp /dir1/* ./dir; cp /dir2/* ./dir2; cp /file ./
             (false, dest.clone())
-        }
-        else {
+        } else {
             let meta = fs::symlink_metadata(&dest)?;
             if meta.is_file() {
                 // cp /path/to/file.txt ./here/file.txt: dest_dir = ./here
                 (true, dest_parent)
-            }
-            else {
+            } else {
                 // cp /path/to/dir ./here/foo -> copy to/dir/* ./here/foo
                 (false, dest.clone())
             }
         };
         for src in source.iter() {
-            let meta = fs::symlink_metadata(&src)?;
+            let meta = fs::symlink_metadata(src)?;
             if dest_is_file && meta.is_dir() {
-                Err(OperationError::DirOverFile{src: src.display().to_string(), dest: dest.display().to_string()})?
+                Err(OperationError::DirOverFile {
+                    src: src.display().to_string(),
+                    dest: dest.display().to_string(),
+                })?
             }
         }
-        if ! dest_is_file && !dest_dir.exists() {
+        if !dest_is_file && !dest_dir.exists() {
             fs::create_dir_all(&dest_dir)?
         }
         let dest_dir = dest_dir.canonicalize()?;
 
-        let (q_tx, q_rx) = channel::<(PathBuf, PathBuf, u64, Permissions, bool)>(); // source_path, source_file, total, 
+        let (q_tx, q_rx) = channel::<(PathBuf, PathBuf, u64, Permissions, bool)>(); // source_path, source_file, total,
         let (d_tx, d_rx) = channel::<(PathBuf, u32, u64, u64)>(); // src_path, chunk, done, total
         CopyWorker::run(dest_dir, d_tx, q_rx);
         // MockCopyWorker::run(dest_dir, d_tx, q_rx);
 
         {
-        let worker_tx = worker_tx.clone();
-        thread::spawn(move || {
-            for (p, chunk, done, todo) in d_rx.iter() {
-                worker_tx.send(WorkerEvent::Stat(StatsChange::Current(p, chunk, done, todo))).expect("send");
-                if done >= todo {
-                    worker_tx.send(WorkerEvent::Stat(StatsChange::FileDone)).expect("send");
+            let worker_tx = worker_tx.clone();
+            thread::spawn(move || {
+                for (p, chunk, done, todo) in d_rx.iter() {
+                    worker_tx
+                        .send(WorkerEvent::Stat(StatsChange::Current(
+                            p, chunk, done, todo,
+                        )))
+                        .expect("send");
+                    if done >= todo {
+                        worker_tx
+                            .send(WorkerEvent::Stat(StatsChange::FileDone))
+                            .expect("send");
+                    }
                 }
-            }
-        });
+            });
         }
-        
+
         thread::spawn(move || {
             // let mut question = "".to_string();
             // let mut skip_all = true;
             while let Ok((src, path, size, perm, is_link)) = src_rx.recv() {
-
-                worker_tx.send(WorkerEvent::Stat(StatsChange::BytesTotal(size))).expect("send");
+                worker_tx
+                    .send(WorkerEvent::Stat(StatsChange::BytesTotal(size)))
+                    .expect("send");
 
                 q_tx.send((src, path, size, perm, is_link)).expect("send");
             }
         });
+
+        // let path = source
+        //     .iter()
+        //     .map(|p| p.to_path_buf())
+        //     .collect::<Vec<PathBuf>>();
+
         Ok(OperationCopy {
-            sources: source,
+            sources: source
+                .iter()
+                .map(|p| p.to_path_buf())
+                .collect::<Vec<PathBuf>>(),
         })
     }
 }
 
-struct CopyWorker {
-}
+struct CopyWorker {}
 
 impl CopyWorker {
-    fn run(dest: PathBuf, tx: Sender<(PathBuf, u32, u64, u64)>, rx: Receiver<(PathBuf, PathBuf, u64, Permissions, bool)>) {
+    fn run(
+        dest: PathBuf,
+        tx: Sender<(PathBuf, u32, u64, u64)>,
+        rx: Receiver<(PathBuf, PathBuf, u64, Permissions, bool)>,
+    ) {
         thread::spawn(move || {
             let mut mkdird = HashSet::new();
             for (src, p, sz, perm, is_link) in rx.iter() {
                 let r = if src.is_file() {
                     p.file_name().unwrap().into()
-                }
-                else {
+                } else {
                     // cp /dir1 d/
                     // src = /dir1 p = /dir1/inner/inner2/f.txt
                     // dest_dir = d/dir1/inner/inner2/f.txt
                     // diff(/dir1 /dir1/inner/inner2/f.txt) = inner/inner2/f.txt
-                    let p_parent : PathBuf = src.file_name().unwrap().into();
+                    let p_parent: PathBuf = src.file_name().unwrap().into();
                     p_parent.join(pathdiff::diff_paths(&p, &src).unwrap())
                 };
                 let dest_file = dest.join(r.clone());
                 let dest_dir = dest_file.parent().unwrap().to_owned();
-                if ! mkdird.contains(&dest_dir) {
+                if !mkdird.contains(&dest_dir) {
                     // TODO : this will make dir foo/bar/baz and then foo/bar again
                     fs::create_dir_all(&dest_dir).unwrap();
                     mkdird.insert(dest_dir.clone());
                 }
-                
+
                 if is_link {
                     let link_dest = std::fs::read_link(&p).unwrap();
                     std::os::unix::fs::symlink(&link_dest, &dest_file).unwrap_or_else(|err| {
                         eprintln!("Error creating symlink: {}", err);
                         ()
-                    }); // FIXME 
+                    }); // FIXME
                     tx.send((p, sz as u32, sz, sz)).unwrap();
                     continue;
                 }
@@ -209,7 +237,11 @@ impl CopyWorker {
 struct MockCopyWorker {}
 
 impl MockCopyWorker {
-    fn run(dest: PathBuf, tx: Sender<(PathBuf, u32, u64, u64)>, rx: Receiver<(PathBuf, PathBuf, u64)>) {
+    fn run(
+        dest: PathBuf,
+        tx: Sender<(PathBuf, u32, u64, u64)>,
+        rx: Receiver<(PathBuf, PathBuf, u64)>,
+    ) {
         let chunk = 1_048_576;
         thread::spawn(move || {
             for (_src, p, sz) in rx.iter() {
