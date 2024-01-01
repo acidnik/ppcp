@@ -1,33 +1,38 @@
 extern crate clap;
-#[macro_use] extern crate failure;
-extern crate walkdir;
+#[macro_use]
+extern crate failure;
 extern crate indicatif;
-extern crate pathdiff;
 extern crate path_abs;
-
-use clap::{Arg, App};
+extern crate pathdiff;
+extern crate walkdir;
+use clap::{arg, command, value_parser, ArgAction, Command};
+use std::path::PathBuf;
 
 use std::error;
 
 mod app;
-mod copy;
 mod avgspeed;
+mod copy;
 
 fn main() -> Result<(), Box<error::Error>> {
-    let matches = App::new("ppcp")
+    let matches = command!()
+        .arg(arg!(["ppcp"]))
         .version("0.0.1")
         .author("Nikita Bilous <nikita@bilous.me>")
         .about("Copy files in console with progress bar")
-        .arg(Arg::with_name("source")
-             .index(1)
-             .required(true)
-             .help("source path")
-             .multiple(true)
+        .arg(
+            arg!(
+                -s --source <PATH> "source path"
+            )
+            .required(true)
+            .value_parser(value_parser!(PathBuf)),
         )
-        .arg(Arg::with_name("dest")
-             .required(true)
-             .help("destination path")
-             .multiple(false)
+        .arg(
+            arg!(
+                -d --dest <PATH> "source path"
+            )
+            .required(true)
+            .value_parser(value_parser!(PathBuf)),
         )
         .get_matches();
 
