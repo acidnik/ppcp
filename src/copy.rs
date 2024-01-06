@@ -1,3 +1,4 @@
+use anyhow::Result;
 use clap::ArgMatches;
 use std::collections::HashSet;
 use std::fs::{self, *};
@@ -6,8 +7,7 @@ use std::path::PathBuf;
 use std::sync::mpsc::{channel, Receiver, Sender};
 use std::thread;
 use std::time::Duration;
-
-use crate::app::Result;
+use thiserror::Error;
 
 #[derive(Clone, PartialEq, Debug)]
 pub enum StatsChange {
@@ -50,11 +50,11 @@ impl Operation for OperationCopy {
     }
 }
 
-#[derive(Fail, Debug)]
+#[derive(Error, Debug)]
 pub enum OperationError {
-    #[fail(display = "Arguments missing")]
+    #[error("Arguments missing")]
     ArgumentsMissing,
-    #[fail(display = "Can not copy directory {} to file {}", src, dest)]
+    #[error("Can not copy directory {src:?} to file {dest:?}")]
     DirOverFile { src: String, dest: String },
 }
 
@@ -64,7 +64,7 @@ impl OperationCopy {
         _user_rx: Receiver<OperationControl>,
         worker_tx: Sender<WorkerEvent>,
         src_rx: Receiver<(PathBuf, PathBuf, u64, Permissions, bool)>,
-    ) -> Result<Self, Error> {
+    ) -> Result<Self> {
         let path: Vec<&PathBuf> = matches
             .get_many::<PathBuf>("source")
             .ok_or(OperationError::ArgumentsMissing)
@@ -110,7 +110,7 @@ impl OperationCopy {
                 Err(OperationError::DirOverFile {
                     src: src.display().to_string(),
                     dest: dest.display().to_string(),
-                })?
+                })?;
             }
         }
         if !dest_is_file && !dest_dir.exists() {

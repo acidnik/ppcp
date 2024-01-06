@@ -1,5 +1,4 @@
 use clap::ArgMatches;
-use failure::Error;
 use indicatif::*;
 use std::ops::{Deref, DerefMut};
 use std::path::PathBuf;
@@ -10,8 +9,7 @@ use std::time::*;
 
 use crate::avgspeed::*;
 use crate::copy::*;
-
-pub type Result<T> = std::result::Result<T, Error>;
+use anyhow::Result;
 
 /// utility to track changes of variable
 #[derive(Default, Clone)]
