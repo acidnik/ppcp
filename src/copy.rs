@@ -1,5 +1,4 @@
 use clap::ArgMatches;
-use std::collections::binary_heap::Iter;
 use std::collections::HashSet;
 use std::fs::{self, *};
 use std::io::{self, *};
@@ -65,11 +64,12 @@ impl OperationCopy {
         _user_rx: Receiver<OperationControl>,
         worker_tx: Sender<WorkerEvent>,
         src_rx: Receiver<(PathBuf, PathBuf, u64, Permissions, bool)>,
-    ) -> Result<Self> {
-        let path = matches
+    ) -> Result<Self, Error> {
+        let path: Vec<&PathBuf> = matches
             .get_many::<PathBuf>("source")
             .ok_or(OperationError::ArgumentsMissing)
-            .unwrap();
+            .unwrap()
+            .collect();
 
         let source = path
             .into_iter()
