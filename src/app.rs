@@ -8,8 +8,8 @@ use std::sync::*;
 use std::thread;
 use std::time::*;
 
-use avgspeed::*;
-use copy::*;
+use crate::avgspeed::*;
+use crate::copy::*;
 
 pub type Result<T> = std::result::Result<T, Error>;
 
