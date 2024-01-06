@@ -6,11 +6,12 @@ license = "MIT"
 description = "Tool for copying files in console with neat progress bars"
 repository = "https://github.com/acidnik/ppcp"
 readme = "README.md"
+edition = "2021"
 
 [dependencies]
 clap = {version="4.4",features=["cargo"]}
-failure = "0.1.5"
 walkdir = "2.2.7"
 indicatif = "0.17.7"
 pathdiff = "0.2.1"
 path_abs = "0.5.0"
+thiserror = "1.0.56"
