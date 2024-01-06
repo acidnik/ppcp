@@ -149,13 +149,13 @@ impl App {
         let pb_bytes = multi_pb.add(pb_bytes);
         multi_pb.set_move_cursor(true);
         let pb_done = Arc::new(Mutex::new(()));
-        let pb_done2 = pb_done.clone();
-        let h = thread::spawn(move || {
-            let _locked = pb_done2.lock().unwrap();
-            //multi_pb.join().expect("join");
-        });
-        let _ = h.join();
-        multi_pb.clear().unwrap();
+        // let pb_done2 = pb_done.clone();
+        // let h = thread::spawn(move || {
+        //     let _locked = pb_done2.lock().unwrap();
+        //     //multi_pb.join().expect("join");
+        // });
+        // let _ = h.join();
+        // multi_pb.clear().unwrap();
         App {
             pb_curr,
             pb_files,
@@ -223,22 +223,21 @@ impl App {
 
         while let Ok(event) = worker_rx.recv() {
             match event {
-                WorkerEvent::Stat(StatsChange::FileDone) => { stats.files_done += 1 }
+                WorkerEvent::Stat(StatsChange::FileDone) => stats.files_done += 1,
                 WorkerEvent::Stat(StatsChange::BytesTotal(n)) => {
                     *stats.bytes_total += n;
                     *stats.files_total += 1;
-                },
+                }
                 WorkerEvent::Stat(StatsChange::Current(p, chunk, done, todo)) => {
                     stats.current_path.set(p);
                     stats.current_total.set(todo);
                     stats.current_done = done;
                     stats.bytes_done += u64::from(chunk);
-                }
-                // WorkerEvent::Status(OperationStatus::Error(err)) => {
-                //     let answer = self.error_ask(err);
-                //     user_tx.send(answer).expect("send");
-                // },
-                // _ => {},
+                } // WorkerEvent::Status(OperationStatus::Error(err)) => {
+                  //     let answer = self.error_ask(err);
+                  //     user_tx.send(answer).expect("send");
+                  // },
+                  // _ => {},
             }
             self.update_progress(&mut stats);
         }

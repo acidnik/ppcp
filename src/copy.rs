@@ -6,7 +6,6 @@ use std::io::{self, *};
 use std::path::PathBuf;
 use std::sync::mpsc::{channel, Receiver, Sender};
 use std::thread;
-use std::time::Duration;
 use thiserror::Error;
 
 #[derive(Clone, PartialEq, Debug)]
@@ -65,22 +64,21 @@ impl OperationCopy {
         worker_tx: Sender<WorkerEvent>,
         src_rx: Receiver<(PathBuf, PathBuf, u64, Permissions, bool)>,
     ) -> Result<Self> {
-        let path: Vec<&PathBuf> = matches
+        let source: Vec<&PathBuf> = matches
             .get_many::<PathBuf>("source")
-            .ok_or(OperationError::ArgumentsMissing)
-            .unwrap()
+            .ok_or(OperationError::ArgumentsMissing)?
             .collect();
 
-        let source = path
-            .into_iter()
-            .map(|p| p.to_path_buf())
-            .collect::<Vec<PathBuf>>();
-        println!("Source {:?}", source);
+        // let source = path
+        //     .into_iter()
+        //     .map(|p| p.to_path_buf())
+        //     .collect::<Vec<PathBuf>>();
+        // println!("Source {:?}", source);
         let dest: &PathBuf = matches
             .get_one::<PathBuf>("dest")
-            .ok_or(OperationError::ArgumentsMissing)
-            .unwrap();
+            .ok_or(OperationError::ArgumentsMissing)?;
         println!("destination {:?}", dest);
+
         let dest_parent = dest
             .parent()
             .ok_or_else(|| io::Error::new(io::ErrorKind::Other, "dest.parent?"))?
@@ -104,6 +102,7 @@ impl OperationCopy {
                 (false, dest.clone())
             }
         };
+
         for src in source.iter() {
             let meta = fs::symlink_metadata(src)?;
             if dest_is_file && meta.is_dir() {
@@ -113,6 +112,7 @@ impl OperationCopy {
                 })?;
             }
         }
+
         if !dest_is_file && !dest_dir.exists() {
             fs::create_dir_all(&dest_dir)?
         }
@@ -213,6 +213,7 @@ impl CopyWorker {
                 let mut fw = BufWriter::new(fwh);
                 let mut buf = vec![0; 10_000_000];
                 let mut s: u64 = 0;
+
                 loop {
                     match fr.read(&mut buf) {
                         Ok(ds) => {
@@ -234,26 +235,28 @@ impl CopyWorker {
     }
 }
 
-struct MockCopyWorker {}
+// Mock copy worker
+// struct MockCopyWorker {}
 
-impl MockCopyWorker {
-    fn run(
-        dest: PathBuf,
-        tx: Sender<(PathBuf, u32, u64, u64)>,
-        rx: Receiver<(PathBuf, PathBuf, u64)>,
-    ) {
-        let chunk = 1_048_576;
-        thread::spawn(move || {
-            for (_src, p, sz) in rx.iter() {
-                let mut s = 0;
-                while s < sz {
-                    let ds = if s + chunk > sz { sz - s } else { chunk };
-                    s += ds;
-                    let delay = Duration::from_micros((ds / chunk * 100_000) as u64);
-                    tx.send((p.clone(), ds as u32, s, sz)).unwrap();
-                    thread::sleep(delay);
-                }
-            }
-        });
-    }
-}
+// use std::time::Duration;
+// impl MockCopyWorker {
+//     fn run(
+//         dest: PathBuf,
+//         tx: Sender<(PathBuf, u32, u64, u64)>,
+//         rx: Receiver<(PathBuf, PathBuf, u64)>,
+//     ) {
+//         let chunk = 1_048_576;
+//         thread::spawn(move || {
+//             for (_src, p, sz) in rx.iter() {
+//                 let mut s = 0;
+//                 while s < sz {
+//                     let ds = if s + chunk > sz { sz - s } else { chunk };
+//                     s += ds;
+//                     let delay = Duration::from_micros((ds / chunk * 100_000) as u64);
+//                     tx.send((p.clone(), ds as u32, s, sz)).unwrap();
+//                     thread::sleep(delay);
+//                 }
+//             }
+//         });
+//     }
+// }
