@@ -1,15 +1,6 @@
-extern crate clap;
-#[macro_use]
-extern crate failure;
-extern crate indicatif;
-extern crate path_abs;
-extern crate pathdiff;
-extern crate walkdir;
-use clap::{arg, command, value_parser};
-use std::path::PathBuf;
-
+use clap::{arg, command, value_parser, ArgAction};
 use std::error;
-
+use std::path::PathBuf;
 mod app;
 mod avgspeed;
 mod copy;
@@ -21,17 +12,20 @@ fn main() -> Result<(), Box<dyn error::Error>> {
         .about("Copy files in console with progress bar")
         .arg(
             arg!(
-                -s --source <PATH> "source path"
-            )
-            .required(true)
-            .value_parser(value_parser!(PathBuf)),
-        )
-        .arg(
-            arg!(
                 -d --dest <PATH> "source path"
             )
             .required(true)
-            .value_parser(value_parser!(PathBuf)),
+            .value_parser(value_parser!(PathBuf))
+            .last(true),
+        )
+        .arg(
+            arg!(
+                -s --source <PATH> "source path"
+            )
+            .required(true)
+            .value_parser(value_parser!(PathBuf))
+            .index(1)
+            .action(ArgAction::Append),
         )
         .get_matches();
 
