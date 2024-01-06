@@ -4,28 +4,26 @@ use std::path::PathBuf;
 mod app;
 mod avgspeed;
 mod copy;
-
+use clap::Arg;
 fn main() -> Result<(), Box<dyn error::Error>> {
     let matches = command!()
         .version("0.0.1")
         .author("Nikita Bilous <nikita@bilous.me>")
         .about("Copy files in console with progress bar")
         .arg(
-            arg!(
-                -d --dest <PATH> "source path"
-            )
-            .required(true)
-            .value_parser(value_parser!(PathBuf))
-            .last(true),
+            Arg::new("source")
+                .required(true)
+                .num_args(1..)
+                .action(ArgAction::Append)
+                .index(1)
+                .value_parser(value_parser!(PathBuf)),
         )
         .arg(
-            arg!(
-                -s --source <PATH> "source path"
-            )
-            .required(true)
-            .value_parser(value_parser!(PathBuf))
-            .index(1)
-            .action(ArgAction::Append),
+            Arg::new("destination")
+                .required(true)
+                .index(2)
+                // .last(true)
+                .value_parser(value_parser!(PathBuf)),
         )
         .get_matches();
 

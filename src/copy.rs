@@ -69,15 +69,16 @@ impl OperationCopy {
             .ok_or(OperationError::ArgumentsMissing)?
             .collect();
 
+        // println!("Source :- {:?}", source);
         // let source = path
         //     .into_iter()
         //     .map(|p| p.to_path_buf())
         //     .collect::<Vec<PathBuf>>();
         // println!("Source {:?}", source);
         let dest: &PathBuf = matches
-            .get_one::<PathBuf>("dest")
+            .get_one::<PathBuf>("destination")
             .ok_or(OperationError::ArgumentsMissing)?;
-        println!("destination {:?}", dest);
+        println!("Destination :- {:?}", dest);
 
         let dest_parent = dest
             .parent()
