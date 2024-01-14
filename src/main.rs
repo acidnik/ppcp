@@ -1,4 +1,4 @@
-use clap::{arg, command, value_parser, ArgAction};
+use clap::{command, value_parser, ArgAction};
 use std::error;
 use std::path::PathBuf;
 mod app;
