@@ -3,7 +3,6 @@ use indicatif::*;
 use std::ops::{Deref, DerefMut};
 use std::path::PathBuf;
 use std::sync::mpsc::*;
-use std::sync::*;
 use std::thread;
 use std::time::*;
 
@@ -20,10 +19,7 @@ pub struct TrackChange<T: PartialEq> {
 
 impl<T: PartialEq> TrackChange<T> {
     pub fn new(val: T) -> Self {
-        TrackChange {
-            val,
-            changed: false,
-        }
+        TrackChange { val, changed: false, }
     }
     pub fn changed(&mut self) -> bool {
         let r = self.changed;
@@ -32,7 +28,7 @@ impl<T: PartialEq> TrackChange<T> {
     }
     pub fn set(&mut self, val: T) {
         if val == self.val {
-            return;
+            return
         }
         self.changed = true;
         self.val = val;
@@ -77,7 +73,8 @@ impl Default for OperationStats {
     }
 }
 
-struct SourceWalker {}
+struct SourceWalker {
+}
 
 impl SourceWalker {
     fn run(tx: Sender<(PathBuf, PathBuf, u64, std::fs::Permissions, bool)>, sources: Vec<PathBuf>) {
@@ -93,8 +90,7 @@ impl SourceWalker {
                                 let size = m.len();
                                 let perm = m.permissions();
                                 let is_link = m.file_type().is_symlink();
-                                tx.send((src.clone(), entry.into_path(), size, perm, is_link))
-                                    .expect("send");
+                                tx.send((src.clone(), entry.into_path(), size, perm, is_link)).expect("send");
                             }
                         }
                         Err(_) => {
@@ -113,7 +109,6 @@ pub struct App {
     pb_bytes: ProgressBar,
     pb_name: ProgressBar,
     last_update: Instant,
-    pb_done: Arc<Mutex<()>>,
     avg_speed: AvgSpeed,
 }
 
@@ -148,21 +143,13 @@ impl App {
         let pb_files = multi_pb.add(pb_files);
         let pb_bytes = multi_pb.add(pb_bytes);
         multi_pb.set_move_cursor(true);
-        let pb_done = Arc::new(Mutex::new(()));
-        // let pb_done2 = pb_done.clone();
-        // let h = thread::spawn(move || {
-        //     let _locked = pb_done2.lock().unwrap();
-        //     //multi_pb.join().expect("join");
-        // });
-        // let _ = h.join();
-        // multi_pb.clear().unwrap();
+        
         App {
             pb_curr,
             pb_files,
             pb_bytes,
             pb_name,
             last_update: Instant::now(),
-            pb_done,
             avg_speed: AvgSpeed::new(),
         }
     }
@@ -174,13 +161,12 @@ impl App {
     fn update_progress(&mut self, stats: &mut OperationStats) {
         // return;
         if Instant::now().duration_since(self.last_update) < Duration::from_millis(97) {
-            return;
+            return
         }
         self.last_update = Instant::now();
         self.pb_name.tick(); // spin the spinner
         if stats.current_path.changed() {
-            self.pb_name
-                .set_message(format!("{}", stats.current_path.display()));
+            self.pb_name.set_message(format!("{}", stats.current_path.display()));
             self.pb_curr.set_length(*stats.current_total as u64);
             stats.current_start = Instant::now(); // This is inaccurate. Init current_start in copy worker and send instant with path?
             self.pb_curr.reset_elapsed();
@@ -189,14 +175,13 @@ impl App {
         //self.pb_curr.set_draw_delta(0);
         self.pb_curr.set_position(stats.current_done as u64);
         self.avg_speed.add(stats.bytes_done);
-        self.pb_curr
-            .set_message(format!("{}/s", HumanBytes(self.avg_speed.get() as u64)));
+        self.pb_curr.set_message(format!("{}/s", HumanBytes(self.avg_speed.get() as u64)));
 
         if stats.files_total.changed() {
             self.pb_files.set_length(*stats.files_total as u64);
         }
         self.pb_files.set_position(u64::from(stats.files_done));
-
+        
         if stats.bytes_total.changed() {
             self.pb_bytes.set_length(*stats.bytes_total as u64);
         }
@@ -212,7 +197,7 @@ impl App {
         let (src_tx, src_rx) = channel();
 
         let operation = OperationCopy::new(&matches, user_rx, worker_tx, src_rx)?;
-
+        
         let search_path = operation.search_path();
         assert!(!search_path.is_empty());
         SourceWalker::run(src_tx, search_path);
@@ -223,21 +208,22 @@ impl App {
 
         while let Ok(event) = worker_rx.recv() {
             match event {
-                WorkerEvent::Stat(StatsChange::FileDone) => stats.files_done += 1,
+                WorkerEvent::Stat(StatsChange::FileDone) => { stats.files_done += 1 }
                 WorkerEvent::Stat(StatsChange::BytesTotal(n)) => {
                     *stats.bytes_total += n;
                     *stats.files_total += 1;
-                }
+                },
                 WorkerEvent::Stat(StatsChange::Current(p, chunk, done, todo)) => {
                     stats.current_path.set(p);
                     stats.current_total.set(todo);
                     stats.current_done = done;
                     stats.bytes_done += u64::from(chunk);
-                } // WorkerEvent::Status(OperationStatus::Error(err)) => {
-                  //     let answer = self.error_ask(err);
-                  //     user_tx.send(answer).expect("send");
-                  // },
-                  // _ => {},
+                }
+                // WorkerEvent::Status(OperationStatus::Error(err)) => {
+                //     let answer = self.error_ask(err);
+                //     user_tx.send(answer).expect("send");
+                // },
+                // _ => {},
             }
             self.update_progress(&mut stats);
         }
@@ -246,14 +232,8 @@ impl App {
         self.pb_bytes.finish();
         self.pb_name.finish();
         let ela = Instant::now().duration_since(start);
-        let _locked = self.pb_done.lock().unwrap();
-        println!(
-            "copied {} files ({}) in {} {}/s",
-            *stats.files_total,
-            HumanBytes(*stats.bytes_total as u64),
-            HumanDuration(ela),
-            HumanBytes(get_speed(*stats.bytes_total, &ela) as u64)
-        );
+        println!("copied {} files ({}) in {} {}/s", *stats.files_total, HumanBytes(*stats.bytes_total as u64), HumanDuration(ela),
+                 HumanBytes(get_speed(*stats.bytes_total, &ela) as u64));
         Ok(())
     }
 }
