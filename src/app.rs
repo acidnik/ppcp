@@ -171,25 +171,25 @@ impl App {
         if stats.current_path.changed() {
             self.pb_name
                 .set_message(format!("{}", stats.current_path.display()));
-            self.pb_curr.set_length(*stats.current_total as u64);
+            self.pb_curr.set_length(*stats.current_total);
             stats.current_start = Instant::now(); // This is inaccurate. Init current_start in copy worker and send instant with path?
             self.pb_curr.reset_elapsed();
             self.pb_curr.reset_eta();
         }
-        self.pb_curr.set_position(stats.current_done as u64);
+        self.pb_curr.set_position(stats.current_done);
         self.avg_speed.add(stats.bytes_done);
         self.pb_curr
-            .set_message(format!("{}/s", HumanBytes(self.avg_speed.get() as u64)));
+            .set_message(format!("{}/s", HumanBytes(self.avg_speed.get())));
 
         if stats.files_total.changed() {
-            self.pb_files.set_length(*stats.files_total as u64);
+            self.pb_files.set_length(*stats.files_total);
         }
         self.pb_files.set_position(u64::from(stats.files_done));
 
         if stats.bytes_total.changed() {
-            self.pb_bytes.set_length(*stats.bytes_total as u64);
+            self.pb_bytes.set_length(*stats.bytes_total);
         }
-        self.pb_bytes.set_position(stats.bytes_done as u64);
+        self.pb_bytes.set_position(stats.bytes_done);
     }
 
     pub fn run(&mut self, matches: &ArgMatches) -> Result<()> {
@@ -200,7 +200,7 @@ impl App {
         // fs walker sends files to operation
         let (src_tx, src_rx) = channel();
 
-        let operation = OperationCopy::new(&matches, user_rx, worker_tx, src_rx)?;
+        let operation = OperationCopy::new(matches, user_rx, worker_tx, src_rx)?;
 
         let search_path = operation.search_path();
         assert!(!search_path.is_empty());
@@ -239,9 +239,9 @@ impl App {
         println!(
             "copied {} files ({}) in {} {}/s",
             *stats.files_total,
-            HumanBytes(*stats.bytes_total as u64),
+            HumanBytes(*stats.bytes_total),
             HumanDuration(ela),
-            HumanBytes(get_speed(*stats.bytes_total, &ela) as u64)
+            HumanBytes(get_speed(*stats.bytes_total, &ela))
         );
         Ok(())
     }

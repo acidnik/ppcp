@@ -22,7 +22,7 @@ where
     pub fn new(size: usize) -> Self {
         RollingAverage {
             hist: VecDeque::with_capacity(size),
-            sum: (0 as u64).into(),
+            sum: 0_u64.into(),
             size,
         }
     }
@@ -74,7 +74,7 @@ pub fn get_speed(x: u64, ela: &Duration) -> u64 {
     } else if *ela >= Duration::from_millis(1) && x < std::u64::MAX / 1_000 {
         x * 1_000 / ela.as_millis() as u64
     } else if *ela >= Duration::from_secs(1) {
-        x / ela.as_secs() as u64
+        x / ela.as_secs()
     } else {
         // what the hell are you?
         std::u64::MAX

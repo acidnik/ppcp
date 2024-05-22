@@ -88,7 +88,7 @@ impl OperationCopy {
             // cp /dir1 /dir2 /file . -> cp /dir1/* ./dir; cp /dir2/* ./dir2; cp /file ./
             (false, dest.clone())
         } else {
-            let meta = fs::symlink_metadata(&dest)?;
+            let meta = fs::symlink_metadata(dest)?;
             if meta.is_file() {
                 // cp /path/to/file.txt ./here/file.txt: dest_dir = ./here
                 (true, dest_parent)
@@ -98,7 +98,7 @@ impl OperationCopy {
             }
         };
         for src in source.iter() {
-            let meta = fs::symlink_metadata(&src)?;
+            let meta = fs::symlink_metadata(src)?;
             if dest_is_file && meta.is_dir() {
                 Err(OperationError::DirOverFile {
                     src: src.display().to_string(),
@@ -182,7 +182,6 @@ impl CopyWorker {
                     let link_dest = std::fs::read_link(&p).unwrap();
                     std::os::unix::fs::symlink(&link_dest, &dest_file).unwrap_or_else(|err| {
                         eprintln!("Error creating symlink: {}", err);
-                        ()
                     }); // FIXME
                     tx.send((p, sz as u32, sz, sz)).unwrap();
                     continue;
@@ -231,7 +230,7 @@ impl _MockCopyWorker {
                 while s < sz {
                     let ds = if s + chunk > sz { sz - s } else { chunk };
                     s += ds;
-                    let delay = Duration::from_micros((ds / chunk * 100_000) as u64);
+                    let delay = Duration::from_micros(ds / chunk * 100_000);
                     tx.send((p.clone(), ds as u32, s, sz)).unwrap();
                     thread::sleep(delay);
                 }
