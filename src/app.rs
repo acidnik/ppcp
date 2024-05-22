@@ -124,17 +124,17 @@ impl App {
         );
         let pb_curr = ProgressBar::new(10);
         pb_curr.set_style(ProgressStyle::default_bar()
-            .template("current {bar:40.} {bytes:>8}/{total_bytes:<8} {elapsed:>5} ETA {eta} {wide_msg} \u{00A0}").unwrap()
+            .template("current {bar:40.} {bytes:>10} / {total_bytes:<10} {elapsed:>5} ETA {eta} {wide_msg} \u{00A0}").unwrap()
         );
         let pb_files = ProgressBar::with_draw_target(Some(10_u64), ProgressDrawTarget::stdout());
         pb_files.set_style(
             ProgressStyle::default_bar()
-                .template("files   {bar:40} {pos:>8}/{len:<8} {wide_msg} \u{00A0}")
+                .template("files   {bar:40} {pos:>10} / {len:<10} {wide_msg} \u{00A0}")
                 .unwrap(),
         );
         let pb_bytes = ProgressBar::with_draw_target(Some(10), ProgressDrawTarget::stdout());
         pb_bytes.set_style(ProgressStyle::default_bar()
-            .template("bytes   {bar:40} {bytes:>8}/{total_bytes:<8} {elapsed:>5} ETA {eta} {wide_msg} \u{00A0}").unwrap()
+            .template("bytes   {bar:40} {bytes:>10} / {total_bytes:<10} {elapsed:>5} ETA {eta} {wide_msg} \u{00A0}").unwrap()
             // .progress_chars("=> ")
         );
         let multi_pb = MultiProgress::new();
@@ -172,7 +172,6 @@ impl App {
             self.pb_curr.reset_elapsed();
             self.pb_curr.reset_eta();
         }
-        //self.pb_curr.set_draw_delta(0);
         self.pb_curr.set_position(stats.current_done as u64);
         self.avg_speed.add(stats.bytes_done);
         self.pb_curr.set_message(format!("{}/s", HumanBytes(self.avg_speed.get() as u64)));
